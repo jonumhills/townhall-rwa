@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Frontend API</title>
+</head>
+<body>
+    <h1>Testing Frontend API Connection</h1>
+    <div id="result"></div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000/api';
+
+        async function testAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Testing...</p>';
+
+            try {
+                // Test counties endpoint
+                const response = await fetch(`${API_BASE_URL}/counties/`);
+                const data = await response.json();
+
+                resultDiv.innerHTML = `
+                    <h2>Counties Found: ${data.length}</h2>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+
+                // Test Durham parcels
+                const durhamResponse = await fetch(`${API_BASE_URL}/counties/durham_nc/parcels/geojson`);
+                const durhamData = await durhamResponse.json();
+
+                resultDiv.innerHTML += `
+                    <h2>Durham Parcels: ${durhamData.features.length}</h2>
+                    <p>First parcel petition_number: ${durhamData.features[0].properties.petition_number}</p>
+                `;
+
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+
+        testAPI();
+    </script>
+</body>
+</html>
