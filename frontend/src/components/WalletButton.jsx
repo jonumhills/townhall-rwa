@@ -2,36 +2,57 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /**
- * WalletButton — Hedera wallet connection (MVP: manual account ID entry)
+ * WalletButton — Multi-chain wallet connection (MVP: manual account ID/address entry)
  *
  * Props:
- *   wallet       {string|null}  — currently connected account ID
- *   onConnect    {fn(accountId)} — called with validated account ID
+ *   wallet       {string|null}  — currently connected account ID or address
+ *   onConnect    {fn(accountId)} — called with validated account ID/address
  *   onDisconnect {fn}
+ *   chainType    {string}        — 'hedera' or 'adi' (default: 'hedera')
  */
-export default function WalletButton({ wallet, onConnect, onDisconnect, onOpenDashboard }) {
+export default function WalletButton({ wallet, onConnect, onDisconnect, onOpenDashboard, chainType = 'hedera' }) {
   const [showModal, setShowModal] = useState(false);
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
 
-  const validate = (val) => /^0\.0\.\d+$/.test(val.trim());
+  const isHedera = chainType === 'hedera';
+  const chainName = isHedera ? 'Hedera' : 'ADI Chain';
+  const networkName = isHedera ? 'Hedera Testnet' : 'ADI Testnet';
+  const placeholder = isHedera ? '0.0.12345' : '0x1234...5678';
+  const portalUrl = isHedera ? 'https://portal.hedera.com' : 'https://faucet.ab.testnet.adifoundation.ai';
+  const portalName = isHedera ? 'portal.hedera.com' : 'ADI testnet faucet';
+
+  const validate = (val) => {
+    if (isHedera) {
+      return /^0\.0\.\d+$/.test(val.trim());
+    } else {
+      return /^0x[a-fA-F0-9]{40}$/.test(val.trim());
+    }
+  };
 
   const handleConnect = () => {
     const trimmed = input.trim();
     if (!validate(trimmed)) {
-      setError('Enter a valid Hedera account ID (e.g. 0.0.12345)');
+      setError(isHedera ? 'Enter a valid Hedera account ID (e.g. 0.0.12345)' : 'Enter a valid Ethereum address (e.g. 0x1234...)');
       return;
     }
-    onConnect(trimmed);
-    setShowModal(false);
-    setInput('');
-    setError('');
+
+    // Add 0.8s delay before connecting
+    setTimeout(() => {
+      onConnect(trimmed);
+      setShowModal(false);
+      setInput('');
+      setError('');
+    }, 800);
   };
 
   const handleDisconnect = () => {
-    onDisconnect();
-    setInput('');
-    setError('');
+    // Add 0.8s delay before disconnecting
+    setTimeout(() => {
+      onDisconnect();
+      setInput('');
+      setError('');
+    }, 800);
   };
 
   // ── Connected state — compact badge (click to open dashboard) ───────────
@@ -44,7 +65,9 @@ export default function WalletButton({ wallet, onConnect, onDisconnect, onOpenDa
           title="View wallet dashboard"
         >
           <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-          <span className="text-emerald-400 font-mono text-sm font-bold">{wallet}</span>
+          <span className="text-emerald-400 font-mono text-sm font-bold">
+            {isHedera ? wallet : `${wallet.slice(0, 6)}...${wallet.slice(-4)}`}
+          </span>
         </button>
         <button
           onClick={handleDisconnect}
@@ -97,14 +120,21 @@ export default function WalletButton({ wallet, onConnect, onDisconnect, onOpenDa
               <div className="bg-gradient-to-r from-amber-600/20 to-yellow-600/20 px-6 py-5 border-b border-amber-500/20 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-amber-500/20 rounded-2xl flex items-center justify-center border border-amber-500/30">
-                    {/* Hedera H logo */}
-                    <svg className="w-5 h-5 text-amber-400" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v3h4V8h2v8h-2v-3h-4v3z"/>
-                    </svg>
+                    {isHedera ? (
+                      // Hedera H logo
+                      <svg className="w-5 h-5 text-amber-400" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v3h4V8h2v8h-2v-3h-4v3z"/>
+                      </svg>
+                    ) : (
+                      // Generic wallet icon for ADI Chain
+                      <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      </svg>
+                    )}
                   </div>
                   <div>
                     <h2 className="text-amber-400 font-black text-base uppercase tracking-wide">Connect Wallet</h2>
-                    <p className="text-gray-500 text-xs">Hedera Testnet</p>
+                    <p className="text-gray-500 text-xs">{networkName}</p>
                   </div>
                 </div>
                 <button
@@ -121,17 +151,17 @@ export default function WalletButton({ wallet, onConnect, onDisconnect, onOpenDa
                 {/* Info card */}
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
                   <p className="text-gray-400 text-sm leading-relaxed">
-                    Enter your <span className="text-amber-400 font-bold">Hedera testnet</span> account ID to claim parcels and trade shares on Townhall.
+                    Enter your <span className="text-amber-400 font-bold">{networkName}</span> {isHedera ? 'account ID' : 'wallet address'} to claim parcels and trade shares on Townhall.
                   </p>
                   <p className="text-gray-600 text-xs">
                     Get a free testnet account at{' '}
                     <a
-                      href="https://portal.hedera.com"
+                      href={portalUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-amber-500 hover:text-amber-400 underline"
                     >
-                      portal.hedera.com
+                      {portalName}
                     </a>
                   </p>
                 </div>
@@ -139,11 +169,11 @@ export default function WalletButton({ wallet, onConnect, onDisconnect, onOpenDa
                 {/* Account ID input */}
                 <div>
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">
-                    Hedera Account ID
+                    {isHedera ? 'Hedera Account ID' : 'Wallet Address'}
                   </label>
                   <input
                     type="text"
-                    placeholder="0.0.12345"
+                    placeholder={placeholder}
                     value={input}
                     onChange={(e) => { setInput(e.target.value); setError(''); }}
                     onKeyDown={(e) => e.key === 'Enter' && handleConnect()}

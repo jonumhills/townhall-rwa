@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { motion, AnimatePresence } from 'framer-motion';
-import api, { hedera } from '../services/api';
-import { estimateParcelValue, formatUsd, formatHbar } from '../utils/marketPricing';
+import api, { durham } from '../services/api';
+import { estimateParcelValue, formatUsd, formatAdi } from '../utils/durhamPricing';
 import ChatAssistant from '../components/ChatAssistant';
 import CustomCursor from '../components/CustomCursor';
 import WalletButton from '../components/WalletButton';
@@ -29,41 +29,37 @@ const MAP_STYLES = {
 };
 
 const ALL_COUNTIES = [
-  { id: 'all',          name: 'All Counties', state: '' },
-  { id: 'charlotte_nc', name: 'Charlotte',    state: 'NC' },
-  { id: 'durham_nc',    name: 'Durham',       state: 'NC' },
-  { id: 'raleigh_nc',   name: 'Raleigh',      state: 'NC' },
+  { id: 'all', name: 'All Counties', state: '' },
+  { id: 'charlotte_nc', name: 'Charlotte', state: 'NC' },
+  { id: 'durham_nc', name: 'Durham', state: 'NC' },
+  { id: 'raleigh_nc', name: 'Raleigh', state: 'NC' },
 ];
 
-function MapView() {
+function MapsDurham() {
   const mapContainer = useRef(null);
   const map = useRef(null);
-  const allFeaturesRef = useRef([]);   // full merged parcel dataset
-  const tokenizedPinsRef = useRef({}); // pin → token_registry row
+  const allFeaturesRef = useRef([]);
+  const tokenizedPinsRef = useRef({});
 
-  const [selectedCounty, setSelectedCounty] = useState('all');
   const [loading, setLoading] = useState(true);
   const [currentStyle, setCurrentStyle] = useState('dark');
   const [showLayerMenu, setShowLayerMenu] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(true);
   const [parcelCount, setParcelCount] = useState(0);
+  const [selectedCounty, setSelectedCounty] = useState('all');
 
-  // Parcel info card (existing)
   const [selectedParcel, setSelectedParcel] = useState(null);
   const [parcelInfoPosition, setParcelInfoPosition] = useState({ x: 0, y: 0 });
 
-  // Wallet
   const [wallet, setWallet] = useState(null);
 
-  // Modals
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [showListModal, setShowListModal] = useState(false);
   const [showBuyPanel, setShowBuyPanel] = useState(false);
-  const [buyListing, setBuyListing] = useState(null); // token_registry row for buy
+  const [buyListing, setBuyListing] = useState(null);
   const [showWalletDashboard, setShowWalletDashboard] = useState(false);
   const [showMarketplace, setShowMarketplace] = useState(false);
 
-  // Load all counties in parallel on map load
   useEffect(() => {
     if (map.current) return;
 
@@ -96,6 +92,7 @@ function MapView() {
 
       const countyIds = ['charlotte_nc', 'durham_nc', 'raleigh_nc'];
       const allFeatures = [];
+
       results.forEach((result, i) => {
         if (result.status === 'fulfilled' && result.value?.features) {
           result.value.features.forEach(f => {
@@ -114,13 +111,13 @@ function MapView() {
     }
   };
 
-  // Fetch tokenized parcels from hedera service and update the gold layer
   const refreshTokenizedLayer = useCallback(async () => {
     try {
-      const { tokenized } = await hedera.getTokenized();
-      // Build a pin → listing map for quick lookup on click
+      const { tokenized } = await durham.getTokenized('durham_nc');
       const pinMap = {};
-      tokenized.forEach(t => { pinMap[t.pin] = t; });
+      if (tokenized && Array.isArray(tokenized)) {
+        tokenized.forEach(t => { pinMap[t.pin] = t; });
+      }
       tokenizedPinsRef.current = pinMap;
 
       updateTokenizedLayer(Object.keys(pinMap));
@@ -129,7 +126,32 @@ function MapView() {
     }
   }, []);
 
-  // Paint tokenized parcels gold on the map
+  // County filtering effect
+  useEffect(() => {
+    if (!map.current || loading || allFeaturesRef.current.length === 0) return;
+
+    setSelectedParcel(null);
+
+    if (selectedCounty === 'all') {
+      const src = map.current.getSource('parcels');
+      if (src) {
+        src.setData({ type: 'FeatureCollection', features: allFeaturesRef.current });
+        setParcelCount(allFeaturesRef.current.length);
+        fitToFeatures(allFeaturesRef.current);
+      }
+    } else {
+      const filtered = allFeaturesRef.current.filter(
+        f => f.properties.county_id === selectedCounty
+      );
+      const src = map.current.getSource('parcels');
+      if (src) {
+        src.setData({ type: 'FeatureCollection', features: filtered });
+        setParcelCount(filtered.length);
+        fitToFeatures(filtered);
+      }
+    }
+  }, [selectedCounty, loading]);
+
   const updateTokenizedLayer = (tokenizedPins) => {
     if (!map.current || !map.current.getLayer('parcels-fill')) return;
 
@@ -142,8 +164,8 @@ function MapView() {
     map.current.setPaintProperty('parcels-fill', 'fill-color', [
       'case',
       ['in', ['get', 'petition_number'], ['literal', tokenizedPins]],
-      '#f59e0b', // gold for tokenized
-      '#ff4400', // red for normal
+      '#f59e0b',
+      '#ff4400',
     ]);
     map.current.setPaintProperty('parcels-fill', 'fill-opacity', [
       'case',
@@ -205,7 +227,6 @@ function MapView() {
       },
     });
 
-    // Re-apply gold layer after re-render
     updateTokenizedLayer(Object.keys(tokenizedPinsRef.current));
 
     map.current.on('click', 'parcels-fill', (e) => {
@@ -213,7 +234,7 @@ function MapView() {
       const point = map.current.project(e.lngLat);
       const chatPanelRight = isChatOpen ? window.innerWidth * 0.30 + 24 : 0;
       const cardWidth = 420;
-      const cardHeight = 520; // approximate max card height
+      const cardHeight = 520;
       const margin = 20;
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
@@ -245,49 +266,31 @@ function MapView() {
   };
 
   const fitToFeatures = (features) => {
-    if (!features.length) return;
+    if (!features || !features.length) return;
     const bounds = new mapboxgl.LngLatBounds();
     features.forEach((feature) => {
-      if (feature.geometry?.type === 'Polygon') {
-        feature.geometry.coordinates[0].forEach(coord => bounds.extend(coord));
-      } else if (feature.geometry?.type === 'MultiPolygon') {
-        feature.geometry.coordinates.forEach(poly =>
-          poly[0].forEach(coord => bounds.extend(coord))
-        );
+      if (!feature.geometry || !feature.geometry.coordinates) return;
+
+      if (feature.geometry.type === 'Polygon') {
+        const coords = feature.geometry.coordinates[0];
+        if (coords && Array.isArray(coords)) {
+          coords.forEach(coord => bounds.extend(coord));
+        }
+      } else if (feature.geometry.type === 'MultiPolygon') {
+        const polys = feature.geometry.coordinates;
+        if (polys && Array.isArray(polys)) {
+          polys.forEach(poly => {
+            if (poly[0] && Array.isArray(poly[0])) {
+              poly[0].forEach(coord => bounds.extend(coord));
+            }
+          });
+        }
       }
     });
     if (!bounds.isEmpty()) {
       map.current.fitBounds(bounds, { padding: 50, duration: 800 });
     }
   };
-
-  useEffect(() => {
-    if (!map.current || loading || allFeaturesRef.current.length === 0) return;
-
-    setSelectedParcel(null);
-
-    if (selectedCounty === 'all') {
-      const src = map.current.getSource('parcels');
-      if (src) {
-        src.setData({ type: 'FeatureCollection', features: allFeaturesRef.current });
-        setParcelCount(allFeaturesRef.current.length);
-        fitToFeatures(allFeaturesRef.current);
-      }
-      ['parcels-fill', 'parcels-outline'].forEach(id => {
-        if (map.current.getLayer(id)) map.current.setFilter(id, null);
-      });
-    } else {
-      const filtered = allFeaturesRef.current.filter(
-        f => f.properties.county_id === selectedCounty
-      );
-      const src = map.current.getSource('parcels');
-      if (src) {
-        src.setData({ type: 'FeatureCollection', features: filtered });
-        setParcelCount(filtered.length);
-        fitToFeatures(filtered);
-      }
-    }
-  }, [selectedCounty]);
 
   const changeMapStyle = (styleKey) => {
     if (!map.current) return;
@@ -317,41 +320,14 @@ function MapView() {
           0.2,
         ]);
       }
-      if (map.current.getLayer('parcels-outline')) {
-        map.current.setPaintProperty('parcels-outline', 'line-color', [
-          'case',
-          ['in', ['get', 'petition_number'], ['literal', petitionIds]],
-          '#fbbf24',
-          '#ff4400',
-        ]);
-        map.current.setPaintProperty('parcels-outline', 'line-width', [
-          'case',
-          ['in', ['get', 'petition_number'], ['literal', petitionIds]],
-          4,
-          1,
-        ]);
-      }
-
-      const src = map.current.getSource('parcels');
-      if (src && src._data?.features) {
-        const highlighted = src._data.features.filter(f =>
-          petitionIds.includes(f.properties.petition_number)
-        );
-        if (highlighted.length > 0) fitToFeatures(highlighted);
-      }
     } else {
       if (map.current.getLayer('parcels-fill')) {
         map.current.setPaintProperty('parcels-fill', 'fill-color', '#ff4400');
         map.current.setPaintProperty('parcels-fill', 'fill-opacity', 0.5);
       }
-      if (map.current.getLayer('parcels-outline')) {
-        map.current.setPaintProperty('parcels-outline', 'line-color', '#ff4400');
-        map.current.setPaintProperty('parcels-outline', 'line-width', 2);
-      }
     }
   };
 
-  // Zoom to a specific parcel geometry from the WalletDashboard
   const handleFocusParcel = (pin, geometry) => {
     if (!map.current || !geometry) return;
     const bounds = new mapboxgl.LngLatBounds();
@@ -363,119 +339,20 @@ function MapView() {
     if (!bounds.isEmpty()) {
       map.current.fitBounds(bounds, { padding: 120, duration: 900, maxZoom: 18 });
     }
-    // Flash the parcel bright green briefly
-    const tokenizedPins = Object.keys(tokenizedPinsRef.current);
-    if (map.current.getLayer('parcels-fill')) {
-      map.current.setPaintProperty('parcels-fill', 'fill-color', [
-        'case',
-        ['==', ['get', 'petition_number'], pin],
-        '#22c55e', // bright green for the focused parcel
-        ['in', ['get', 'petition_number'], ['literal', tokenizedPins]],
-        '#f59e0b',
-        '#ff4400',
-      ]);
-      map.current.setPaintProperty('parcels-fill', 'fill-opacity', [
-        'case',
-        ['==', ['get', 'petition_number'], pin],
-        0.9,
-        0.35,
-      ]);
-    }
-    if (map.current.getLayer('parcels-outline')) {
-      map.current.setPaintProperty('parcels-outline', 'line-color', [
-        'case',
-        ['==', ['get', 'petition_number'], pin],
-        '#22c55e',
-        ['in', ['get', 'petition_number'], ['literal', tokenizedPins]],
-        '#f59e0b',
-        '#ff4400',
-      ]);
-      map.current.setPaintProperty('parcels-outline', 'line-width', [
-        'case',
-        ['==', ['get', 'petition_number'], pin],
-        4,
-        2,
-      ]);
-    }
-    // Restore after 3 seconds
-    setTimeout(() => {
-      updateTokenizedLayer(tokenizedPins);
-    }, 3000);
   };
 
-  // Highlight only the wallet's owned parcels on the map.
-  // ownedParcels: array of token_registry rows (with metadata.geometry) | null = reset
-  const handleHighlightOwned = (ownedParcels) => {
-    if (!map.current) return;
-    if (!ownedParcels || ownedParcels.length === 0) {
-      // Reset to normal tokenized layer
-      updateTokenizedLayer(Object.keys(tokenizedPinsRef.current));
-      return;
-    }
-    const ownedPins = ownedParcels.map(p => p.pin);
-    const tokenizedPins = Object.keys(tokenizedPinsRef.current);
-    if (map.current.getLayer('parcels-fill')) {
-      map.current.setPaintProperty('parcels-fill', 'fill-color', [
-        'case',
-        ['in', ['get', 'petition_number'], ['literal', ownedPins]],
-        '#22c55e', // bright green for owned parcels
-        ['in', ['get', 'petition_number'], ['literal', tokenizedPins]],
-        '#f59e0b',
-        '#ff4400',
-      ]);
-      map.current.setPaintProperty('parcels-fill', 'fill-opacity', [
-        'case',
-        ['in', ['get', 'petition_number'], ['literal', ownedPins]],
-        0.85,
-        0.2, // dim everything else
-      ]);
-    }
-    if (map.current.getLayer('parcels-outline')) {
-      map.current.setPaintProperty('parcels-outline', 'line-color', [
-        'case',
-        ['in', ['get', 'petition_number'], ['literal', ownedPins]],
-        '#22c55e',
-        '#ff4400',
-      ]);
-      map.current.setPaintProperty('parcels-outline', 'line-width', [
-        'case',
-        ['in', ['get', 'petition_number'], ['literal', ownedPins]],
-        3,
-        1,
-      ]);
-    }
-    // Zoom to fit all owned parcels using geometry from the owned data
-    const bounds = new mapboxgl.LngLatBounds();
-    ownedParcels.forEach(parcel => {
-      const geom = parcel.metadata?.geometry;
-      if (!geom) return;
-      if (geom.type === 'Polygon') {
-        geom.coordinates[0].forEach(coord => bounds.extend(coord));
-      } else if (geom.type === 'MultiPolygon') {
-        geom.coordinates.forEach(poly => poly[0].forEach(coord => bounds.extend(coord)));
-      }
-    });
-    if (!bounds.isEmpty()) {
-      map.current.fitBounds(bounds, { padding: 80, duration: 900 });
-    }
-  };
-
-  // Determine if clicked parcel is tokenized + listed → show BuyPanel
   const handleClaimClick = () => {
     if (!selectedParcel) return;
     const pin = selectedParcel.petition_number || selectedParcel.pin;
     const tokenizedRow = tokenizedPinsRef.current[pin];
 
     if (tokenizedRow?.listed && tokenizedRow.listed_shares > 0) {
-      // Listed parcel → any wallet can buy shares
       setBuyListing(tokenizedRow);
       setShowBuyPanel(true);
       setSelectedParcel(null);
-    } else if (tokenizedRow && !tokenizedRow.listed && tokenizedRow.owner_wallet === wallet) {
-      // Tokenized but not listed yet, and current wallet is the owner → list it
+    } else if (tokenizedRow && !tokenizedRow.listed && tokenizedRow.owner_wallet?.toLowerCase() === wallet?.toLowerCase()) {
       setShowListModal(true);
     } else {
-      // Not tokenized → claim it
       setShowClaimModal(true);
     }
   };
@@ -489,7 +366,8 @@ function MapView() {
     : null;
 
   const isListed = tokenizedRow?.listed && tokenizedRow.listed_shares > 0;
-  const isOwner = isTokenized && wallet && tokenizedRow?.owner_wallet === wallet;
+  // Compare Ethereum addresses in lowercase (case-insensitive)
+  const isOwner = isTokenized && wallet && tokenizedRow?.owner_wallet?.toLowerCase() === wallet?.toLowerCase();
   const isPendingVerification = tokenizedRow?.verification_status === 'pending';
 
   return (
@@ -516,7 +394,7 @@ function MapView() {
             </div>
             <div>
               <h1 className="text-lg font-black text-white">TOWNHALL</h1>
-              <p className="text-xs text-gray-500">Intelligence Platform</p>
+              <p className="text-xs text-gray-500">Durham County • ADI Chain</p>
             </div>
           </motion.div>
 
@@ -551,7 +429,7 @@ function MapView() {
               <select
                 value={selectedCounty}
                 onChange={(e) => setSelectedCounty(e.target.value)}
-                className="bg-transparent text-white font-medium px-4 py-3 border-none focus:outline-none focus:ring-2 focus:ring-red-500/50 rounded-2xl"
+                className="bg-transparent text-white font-medium px-4 py-3 border-none focus:outline-none focus:ring-2 focus:ring-red-500/50 rounded-2xl cursor-pointer"
               >
                 {ALL_COUNTIES.map((county) => (
                   <option key={county.id} value={county.id} className="bg-black">
@@ -616,6 +494,7 @@ function MapView() {
               onConnect={setWallet}
               onDisconnect={() => { setWallet(null); setShowWalletDashboard(false); }}
               onOpenDashboard={() => setShowWalletDashboard(true)}
+              chainType="adi"
             />
           </motion.div>
         </div>
@@ -632,7 +511,10 @@ function MapView() {
             className="absolute left-6 top-28 bottom-6 w-[30vw] z-10"
           >
             <div className="h-full bg-black/80 backdrop-blur-xl rounded-3xl border border-red-500/20 shadow-2xl overflow-hidden">
-              <ChatAssistant onPetitionsHighlight={handlePetitionsHighlight} />
+              <ChatAssistant
+                onPetitionsHighlight={handlePetitionsHighlight}
+                countyId="durham_nc"
+              />
             </div>
           </motion.div>
         )}
@@ -698,7 +580,7 @@ function MapView() {
                       </h3>
                       <p className="text-gray-500 text-xs flex items-center gap-1">
                         {isTokenized
-                          ? <><span className="w-1.5 h-1.5 bg-amber-400 rounded-full inline-block" /> Tokenized on Hedera</>
+                          ? <><span className="w-1.5 h-1.5 bg-amber-400 rounded-full inline-block" /> Tokenized on ADI Chain</>
                           : selectedParcel.file_number ? `File: ${selectedParcel.file_number}` : 'Petition Details'
                         }
                       </p>
@@ -723,21 +605,16 @@ function MapView() {
                     </div>
                   )}
 
-                  {selectedParcel.petitioner && (
-                    <div>
-                      <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Petitioner</div>
-                      <div className="text-white font-medium text-sm">{selectedParcel.petitioner}</div>
-                    </div>
-                  )}
-
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Current Zoning</div>
                       <div className="text-white font-medium text-sm">{selectedParcel.current_zoning || 'N/A'}</div>
                     </div>
                     <div>
-                      <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Proposed Zoning</div>
-                      <div className="text-white font-medium text-sm">{selectedParcel.proposed_zoning || 'N/A'}</div>
+                      <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Area</div>
+                      <div className="text-white font-medium text-sm">
+                        {selectedParcel.area_sqft ? `${selectedParcel.area_sqft.toLocaleString()} sqft` : 'N/A'}
+                      </div>
                     </div>
                   </div>
 
@@ -746,14 +623,14 @@ function MapView() {
                     const zoning = selectedParcel.current_zoning || selectedParcel.zoning;
                     if (!zoning) return null;
                     const areaSqft = selectedParcel.area_sqft || null;
-                    const { valueUsd, valueHbar, valueHbarPerShare, multiplier, acreage } = estimateParcelValue(zoning, areaSqft);
+                    const { valueUsd, valueAdi, valueAdiPerShare, multiplier, acreage } = estimateParcelValue(zoning, areaSqft);
                     const isAboveBase = multiplier >= 1;
                     return (
                       <div className="bg-gradient-to-r from-emerald-900/30 to-teal-900/30 border border-emerald-500/30 rounded-xl p-3.5">
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-0.5">Est. Market Value</div>
-                            <div className="text-2xl font-black text-emerald-400">{formatHbar(valueHbar)}</div>
+                            <div className="text-2xl font-black text-emerald-400">{formatAdi(valueAdi)}</div>
                             <div className="text-xs text-gray-500 mt-0.5">
                               {formatUsd(valueUsd)} · {zoning} · {multiplier.toFixed(2)}× base
                             </div>
@@ -763,7 +640,7 @@ function MapView() {
                               </div>
                             )}
                             <div className="text-xs text-amber-400/80 mt-0.5 font-medium">
-                              ~{valueHbarPerShare} ℏ / share · 1,000 shares total
+                              ~{valueAdiPerShare.toLocaleString()} ADI / share · 1,000 shares total
                             </div>
                           </div>
                           <div className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl border ${isAboveBase ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400' : 'bg-orange-500/15 border-orange-500/30 text-orange-400'}`}>
@@ -776,69 +653,19 @@ function MapView() {
                       </div>
                     );
                   })()}
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Status</div>
-                      <div className="inline-block bg-red-500/20 border border-red-500/30 px-2.5 py-1 rounded-lg">
-                        <span className="text-red-400 font-bold text-xs uppercase tracking-wide">
-                          {selectedParcel.status || 'Pending'}
-                        </span>
-                      </div>
-                    </div>
-                    {selectedParcel.action && (
-                      <div>
-                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Action</div>
-                        <div className="inline-block bg-orange-500/10 border border-orange-500/20 px-2.5 py-1 rounded-lg">
-                          <span className="text-orange-400 font-bold text-xs uppercase tracking-wide">
-                            {selectedParcel.action}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {selectedParcel.vote_result && (
-                    <div>
-                      <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Vote Result</div>
-                      <div className="text-white font-medium text-sm">{selectedParcel.vote_result}</div>
-                    </div>
-                  )}
-
-                  {selectedParcel.meeting_type && (
-                    <div>
-                      <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Meeting Type</div>
-                      <div className="text-gray-300 text-sm">{selectedParcel.meeting_type}</div>
-                    </div>
-                  )}
-
-                  {selectedParcel.pin && (
-                    <div>
-                      <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">PIN</div>
-                      <div className="text-gray-400 font-mono text-xs">{selectedParcel.pin}</div>
-                    </div>
-                  )}
                 </div>
 
-                {/* Footer — Claim / Buy / View Filing */}
+                {/* Footer */}
                 <div className="bg-red-500/5 px-5 py-3 border-t border-red-500/10 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    {/* Market value compact badge */}
                     {(() => {
                       const zoning = selectedParcel.current_zoning || selectedParcel.zoning;
-                      if (!zoning) return (
-                        <div className="flex items-center gap-2 text-gray-400 text-sm">
-                          <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          <span>{selectedParcel.meeting_date || 'Date TBD'}</span>
-                        </div>
-                      );
-                      const { valueUsd, valueHbar, acreage } = estimateParcelValue(zoning, selectedParcel.area_sqft || null);
+                      if (!zoning) return null;
+                      const { valueUsd, valueAdi, acreage } = estimateParcelValue(zoning, selectedParcel.area_sqft || null);
                       return (
                         <div className="flex flex-col">
                           <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Est. Value</span>
-                          <span className="text-emerald-400 font-black text-base leading-tight">{formatHbar(valueHbar)}</span>
+                          <span className="text-emerald-400 font-black text-base leading-tight">{formatAdi(valueAdi)}</span>
                           <span className="text-gray-600 text-[10px]">{formatUsd(valueUsd)}{acreage ? ` · ${acreage} ac` : ''}</span>
                         </div>
                       );
@@ -846,19 +673,6 @@ function MapView() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {selectedParcel.legislation_url && (
-                      <a
-                        href={selectedParcel.legislation_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-red-400 hover:text-red-300 font-medium flex items-center gap-1 transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        View Filing ↗
-                      </a>
-                    )}
-
-                    {/* Claim / Buy / List button */}
                     {wallet ? (
                       <button
                         onClick={(e) => { e.stopPropagation(); handleClaimClick(); }}
@@ -907,6 +721,7 @@ function MapView() {
             setSelectedParcel(null);
             refreshTokenizedLayer();
           }}
+          serviceType="durham"
         />
       )}
 
@@ -921,6 +736,7 @@ function MapView() {
             setSelectedParcel(null);
             refreshTokenizedLayer();
           }}
+          serviceType="durham"
         />
       )}
 
@@ -933,6 +749,7 @@ function MapView() {
           onBought={() => {
             refreshTokenizedLayer();
           }}
+          serviceType="durham"
         />
       )}
 
@@ -942,15 +759,14 @@ function MapView() {
           wallet={wallet}
           onClose={() => setShowWalletDashboard(false)}
           onFocusParcel={handleFocusParcel}
-          onHighlightOwned={handleHighlightOwned}
-          serviceType="hedera"
+          serviceType="durham"
         />
       )}
 
       {/* Marketplace */}
       {showMarketplace && (
         <Marketplace
-          serviceType="hedera"
+          serviceType="durham"
           onClose={() => setShowMarketplace(false)}
           onSelectParcel={(listing) => {
             setShowMarketplace(false);
@@ -974,7 +790,7 @@ function MapView() {
           >
             <div className="text-center">
               <div className="w-16 h-16 border-4 border-red-500 border-t-transparent rounded-full animate-spin mb-4 mx-auto"></div>
-              <p className="text-white font-bold text-lg">Loading Townhall...</p>
+              <p className="text-white font-bold text-lg">Loading Durham County...</p>
             </div>
           </motion.div>
         )}
@@ -983,4 +799,4 @@ function MapView() {
   );
 }
 
-export default MapView;
+export default MapsDurham;

@@ -17,10 +17,15 @@ export default defineConfig(({ mode }) => {
         changeOrigin: true,
         followRedirects: true,
       },
-      '/hedera': {
+      '/raleigh': {
         target: 'http://localhost:3001',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/hedera/, ''),
+        rewrite: (path) => path.replace(/^\/raleigh/, ''),
+      },
+      '/durham': {
+        target: 'http://localhost:3002',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/durham/, ''),
       },
       '/elastic-proxy': {
         target: env.VITE_KIBANA_ENDPOINT || 'https://my-elasticsearch-project-e85ed9.kb.us-east-1.aws.elastic.cloud',

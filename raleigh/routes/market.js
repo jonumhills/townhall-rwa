@@ -145,6 +145,7 @@ router.post("/buy", async (req, res) => {
     const { error: holdingError } = await sb.from("share_holdings").insert({
       pin,
       county_id: countyId,
+      blockchain_type: "hedera",
       share_token_id: token.share_token_id,
       buyer_wallet: buyerAccountId,
       shares_owned: sharesAmount,

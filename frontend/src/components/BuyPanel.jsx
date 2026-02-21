@@ -1,33 +1,38 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { hedera } from '../services/api';
+import { hedera, durham } from '../services/api';
 
 /**
  * BuyPanel — displayed when user clicks a gold (tokenized + listed) parcel.
  * Shows listing info and lets the buyer purchase shares.
  *
  * Props:
- *   listing   {object}  — row from token_registry (pin, share_token_id, listed_shares, price_hbar, owner_wallet, metadata)
- *   wallet    {string}  — connected buyer Hedera account ID
- *   onClose   {fn}
- *   onBought  {fn}      — called after successful purchase
+ *   listing      {object}  — row from token_registry (pin, share_token_id, listed_shares, price_hbar/price_adi, owner_wallet, metadata)
+ *   wallet       {string}  — connected buyer Hedera account ID or ADI address
+ *   onClose      {fn}
+ *   onBought     {fn}      — called after successful purchase
+ *   serviceType  {string}  — 'hedera' or 'durham'
  */
-export default function BuyPanel({ listing, wallet, onClose, onBought }) {
+export default function BuyPanel({ listing, wallet, onClose, onBought, serviceType = 'hedera' }) {
   const [sharesAmount, setSharesAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [receipt, setReceipt] = useState(null);
 
+  const isDurham = serviceType === 'durham';
+  const service = isDurham ? durham : hedera;
+  const tokenSymbol = isDurham ? 'ADI' : 'HBAR';
+
   const maxShares = listing.listed_shares || 0;
-  const pricePerShare = listing.price_hbar || 0;
+  const pricePerShare = isDurham ? (listing.price_adi || 0) : (listing.price_hbar || 0);
   const shares = parseInt(sharesAmount) || 0;
   const totalCost = (shares * pricePerShare).toFixed(2);
 
   const metadata = listing.metadata || {};
   const parcelName = metadata.name || listing.pin;
   const address = metadata.parcel?.address || metadata.parcel?.location || '';
-  const currentZoning = metadata.zoning?.current_zoning || '';
-  const proposedZoning = metadata.zoning?.proposed_zoning || '';
+  const currentZoning = metadata.zoning?.current_zoning || metadata.zoning?.current || '';
+  const proposedZoning = metadata.zoning?.proposed_zoning || metadata.zoning?.proposed || '';
 
   const handleBuy = async () => {
     if (!shares || shares <= 0) {
@@ -41,12 +46,12 @@ export default function BuyPanel({ listing, wallet, onClose, onBought }) {
     setLoading(true);
     setError('');
     try {
-      const result = await hedera.buyShares({
+      const result = await service.buyShares({
         pin: listing.pin,
         countyId: listing.county_id,
         buyerAccountId: wallet,
         sharesAmount: shares,
-        txHashFromBuyer: null, // MVP: operator handles HBAR internally
+        txHashFromBuyer: null, // MVP: operator handles payment internally
       });
       setReceipt(result);
       onBought();
@@ -116,8 +121,8 @@ export default function BuyPanel({ listing, wallet, onClose, onBought }) {
                 {/* Listing stats */}
                 <div className="grid grid-cols-3 gap-2">
                   <Stat label="Available" value={`${maxShares}`} unit="shares" />
-                  <Stat label="Price" value={pricePerShare} unit="HBAR/share" />
-                  <Stat label="Owner" value={listing.owner_wallet?.split('.')[2] ? `0.0.${listing.owner_wallet.split('.')[2]}` : '—'} unit="" mono />
+                  <Stat label="Price" value={pricePerShare} unit={`${tokenSymbol}/share`} />
+                  <Stat label="Owner" value={listing.owner_wallet?.split('.')[2] ? `0.0.${listing.owner_wallet.split('.')[2]}` : (listing.owner_wallet ? `${listing.owner_wallet.slice(0, 6)}...${listing.owner_wallet.slice(-4)}` : '—')} unit="" mono />
                 </div>
 
                 {/* Buyer wallet */}
@@ -145,8 +150,8 @@ export default function BuyPanel({ listing, wallet, onClose, onBought }) {
                 {/* Cost preview */}
                 {shares > 0 && (
                   <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-center justify-between">
-                    <span className="text-gray-400 text-sm">{shares} shares × {pricePerShare} HBAR</span>
-                    <span className="text-amber-400 font-black text-lg">{totalCost} HBAR</span>
+                    <span className="text-gray-400 text-sm">{shares} shares × {pricePerShare} {tokenSymbol}</span>
+                    <span className="text-amber-400 font-black text-lg">{totalCost} {tokenSymbol}</span>
                   </div>
                 )}
 
@@ -170,9 +175,9 @@ export default function BuyPanel({ listing, wallet, onClose, onBought }) {
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                         </svg>
-                        Processing on Hedera...
+                        Processing on {isDurham ? 'ADI Chain' : 'Hedera'}...
                       </span>
-                    : `Buy ${shares || 0} Shares for ${totalCost} HBAR`
+                    : `Buy ${shares || 0} Shares for ${totalCost} ${tokenSymbol}`
                   }
                 </button>
               </>
@@ -186,14 +191,14 @@ export default function BuyPanel({ listing, wallet, onClose, onBought }) {
                 </div>
                 <div>
                   <h3 className="text-white font-black text-lg">Purchase Complete!</h3>
-                  <p className="text-gray-400 text-sm mt-1">Shares transferred on Hedera testnet.</p>
+                  <p className="text-gray-400 text-sm mt-1">Shares transferred on {isDurham ? 'ADI Chain' : 'Hedera'} testnet.</p>
                 </div>
                 <div className="bg-white/5 rounded-2xl p-4 border border-white/10 space-y-2 text-left">
-                  <Row label="Shares Bought" value={String(receipt.shares_purchased)} />
-                  <Row label="Total Paid" value={`${receipt.total_paid_hbar} HBAR`} />
-                  <Row label="Seller Received" value={`${receipt.seller_received_hbar} HBAR`} />
-                  <Row label="Platform Fee" value={`${receipt.platform_fee_hbar} HBAR`} />
-                  <Row label="TX" value={receipt.tx_hash} mono />
+                  <Row label="Shares Bought" value={String(isDurham ? receipt.purchase?.sharesPurchased : receipt.shares_purchased)} />
+                  <Row label="Total Paid" value={`${isDurham ? receipt.purchase?.totalPaid : receipt.total_paid_hbar} ${tokenSymbol}`} />
+                  <Row label="Seller Received" value={`${isDurham ? receipt.purchase?.sellerReceives : receipt.seller_received_hbar} ${tokenSymbol}`} />
+                  <Row label="Platform Fee" value={`${isDurham ? receipt.purchase?.platformFee : receipt.platform_fee_hbar} ${tokenSymbol}`} />
+                  <Row label="TX" value={isDurham ? receipt.purchase?.txHash : receipt.tx_hash} mono />
                 </div>
                 {receipt.explorer_url && (
                   <a

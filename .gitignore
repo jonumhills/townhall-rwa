@@ -55,8 +55,8 @@ logs/
 .env
 .env.local
 .env.*.local
-hedera/.env
-hedera/node_modules/
+raleigh/.env
+raleigh/node_modules/
 
 # Testing
 .pytest_cache/

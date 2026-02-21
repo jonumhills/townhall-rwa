@@ -22,7 +22,7 @@ function Hero({ onViewMap }) {
           >
             <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
             <span className="text-red-400 text-sm font-medium tracking-wider uppercase">
-              Powered by Elasticsearch Agent Builder
+              Real Estate DeFi
             </span>
           </motion.div>
 
@@ -44,7 +44,7 @@ function Hero({ onViewMap }) {
             transition={{ delay: 0.4, duration: 0.8 }}
             className="text-3xl md:text-4xl font-bold text-red-500 mb-4"
           >
-            Rezoning Intelligence Platform
+            Tokenized Real Estate Intelligence
           </motion.p>
 
           <motion.p
@@ -53,9 +53,10 @@ function Hero({ onViewMap }) {
             transition={{ delay: 0.5, duration: 0.8 }}
             className="text-xl text-gray-400 max-w-3xl mx-auto mb-12 leading-relaxed"
           >
-            Track government rezoning decisions in real-time. Discover land use changes{' '}
-            <span className="text-red-400 font-semibold">before they break ground</span>.
-            Powered by AI and geospatial intelligence.
+            Own fractions of real estate with blockchain-verified deeds. Track rezoning decisions,{' '}
+            <span className="text-red-400 font-semibold">tokenize property parcels</span>, and{' '}
+            <span className="text-orange-400 font-semibold">trade shares onchain</span>.
+            Powered by multi-chain DeFi and AI geospatial intelligence.
           </motion.p>
 
           {/* CTA Buttons */}
@@ -104,9 +105,9 @@ function Hero({ onViewMap }) {
             className="grid grid-cols-3 gap-8 max-w-2xl mx-auto"
           >
             {[
-              { label: 'AI-Powered', icon: '🤖' },
-              { label: 'Real-Time Data', icon: '⚡' },
-              { label: 'GIS Mapping', icon: '🗺️' },
+              { label: 'Multi-Chain NFTs', icon: '⛓️' },
+              { label: 'Fractional Shares', icon: '📊' },
+              { label: 'Blockchain Deeds', icon: '📜' },
             ].map((item, index) => (
               <div
                 key={index}

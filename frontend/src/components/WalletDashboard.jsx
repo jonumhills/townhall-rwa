@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { hedera } from '../services/api';
+import { hedera, durham } from '../services/api';
 
 /**
- * WalletDashboard — slide-in panel showing everything linked to a Hedera address.
+ * WalletDashboard — slide-in panel showing everything linked to a wallet address.
  *
  * Sections:
  *   1. Summary stats (parcels owned, shares held, total value)
@@ -13,18 +13,26 @@ import { hedera } from '../services/api';
  *      • Parcel PIN, shares owned, price paid, tx hash
  *
  * Props:
- *   wallet            {string}   connected Hedera account ID
+ *   wallet            {string}   connected wallet (Hedera account ID or Ethereum address)
  *   onClose           {fn}
  *   onFocusParcel     {fn(pin, geometry)}  — zoom map to a specific parcel
  *   onHighlightOwned  {fn(pins[]|null)}    — highlight only owned parcels (null resets)
+ *   serviceType       {string}  'hedera' or 'durham'
  */
-export default function WalletDashboard({ wallet, onClose, onFocusParcel, onHighlightOwned }) {
+export default function WalletDashboard({ wallet, onClose, onFocusParcel, onHighlightOwned, serviceType = 'hedera' }) {
   const [tab, setTab] = useState('parcels'); // 'parcels' | 'holdings'
   const [owned, setOwned] = useState([]);
   const [portfolio, setPortfolio] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showingOwned, setShowingOwned] = useState(false);
+
+  const isDurham = serviceType === 'durham';
+  const service = isDurham ? durham : hedera;
+  const tokenSymbol = isDurham ? 'ADI' : 'HBAR';
+  const explorerBase = isDurham
+    ? 'https://explorer.ab.testnet.adifoundation.ai'
+    : 'https://hashscan.io/testnet';
 
   useEffect(() => {
     if (!wallet) return;
@@ -36,8 +44,8 @@ export default function WalletDashboard({ wallet, onClose, onFocusParcel, onHigh
     setError('');
     try {
       const [ownedRes, portfolioRes] = await Promise.all([
-        hedera.getOwned(wallet),
-        hedera.getPortfolio(wallet),
+        service.getOwned(wallet),
+        service.getPortfolio(wallet),
       ]);
       setOwned(ownedRes.owned || []);
       setPortfolio(portfolioRes.portfolio || []);
@@ -68,7 +76,9 @@ export default function WalletDashboard({ wallet, onClose, onFocusParcel, onHigh
   // Summary numbers
   const totalOwnedParcels = owned.length;
   const totalSharesHeld = portfolio.reduce((s, h) => s + h.shares_owned, 0);
-  const totalValueHbar = portfolio.reduce((s, h) => s + h.price_paid_hbar, 0);
+  const totalValue = portfolio.reduce((s, h) => {
+    return s + (isDurham ? (h.price_paid_adi || 0) : (h.price_paid_hbar || 0));
+  }, 0);
   const totalListedShares = owned.reduce((s, p) => s + (p.listed_shares || 0), 0);
   const totalSoldShares = owned.reduce((s, p) => s + (p.shares_sold || 0), 0);
 
@@ -171,9 +181,9 @@ export default function WalletDashboard({ wallet, onClose, onFocusParcel, onHigh
             ) : error ? (
               <div className="m-4 bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-sm">{error}</div>
             ) : tab === 'parcels' ? (
-              <ParcelsTab owned={owned} onFocusParcel={onFocusParcel} />
+              <ParcelsTab owned={owned} onFocusParcel={onFocusParcel} tokenSymbol={tokenSymbol} explorerBase={explorerBase} />
             ) : (
-              <HoldingsTab portfolio={portfolio} totalValue={totalValueHbar} />
+              <HoldingsTab portfolio={portfolio} totalValue={totalValue} tokenSymbol={tokenSymbol} explorerBase={explorerBase} />
             )}
           </div>
 
@@ -197,7 +207,7 @@ export default function WalletDashboard({ wallet, onClose, onFocusParcel, onHigh
 }
 
 // ── Parcels owned tab ─────────────────────────────────────────────────────────
-function ParcelsTab({ owned, onFocusParcel }) {
+function ParcelsTab({ owned, onFocusParcel, tokenSymbol, explorerBase }) {
   if (owned.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-48 text-center px-6">
@@ -215,13 +225,13 @@ function ParcelsTab({ owned, onFocusParcel }) {
   return (
     <div className="p-4 space-y-3">
       {owned.map((parcel) => (
-        <ParcelCard key={`${parcel.pin}-${parcel.county_id}`} parcel={parcel} onFocusParcel={onFocusParcel} />
+        <ParcelCard key={`${parcel.pin}-${parcel.county_id}`} parcel={parcel} onFocusParcel={onFocusParcel} tokenSymbol={tokenSymbol} explorerBase={explorerBase} />
       ))}
     </div>
   );
 }
 
-function ParcelCard({ parcel, onFocusParcel }) {
+function ParcelCard({ parcel, onFocusParcel, tokenSymbol, explorerBase }) {
   const [expanded, setExpanded] = useState(false);
   const sharesSold = parcel.shares_sold || 0;
   const sharesListed = parcel.listed_shares || 0;
@@ -233,35 +243,37 @@ function ParcelCard({ parcel, onFocusParcel }) {
 
   const location = parcel.metadata?.parcel?.address || parcel.metadata?.parcel?.location || '';
 
+  // Get price based on blockchain type
+  const pricePerShare = parcel.blockchain_type === 'adi'
+    ? parcel.price_adi
+    : parcel.price_hbar;
+
   return (
     <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
       {/* Card header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full text-left px-4 py-3 flex items-start justify-between gap-3 hover:bg-white/5 transition-colors"
-      >
-        <div className="flex items-start gap-3 min-w-0">
+      <div className="px-4 py-3 flex items-start justify-between gap-3">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-start gap-3 min-w-0 flex-1 hover:opacity-80 transition-opacity"
+        >
           <div className="w-8 h-8 bg-amber-500/20 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
             <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
             </svg>
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 text-left">
             <p className="text-white font-bold text-sm font-mono truncate">{parcel.pin}</p>
             {location && <p className="text-gray-500 text-xs truncate">{location}</p>}
             <p className="text-gray-600 text-xs">{parcel.county_id?.replace('_', ' ')}</p>
           </div>
-        </div>
+        </button>
         <div className="flex items-center gap-2 shrink-0">
           <span className={`text-xs font-bold px-2 py-0.5 rounded-lg border ${statusColor}`}>
             {parcel.listed ? 'Listed' : 'Unlisted'}
           </span>
           {onFocusParcel && parcel.metadata?.geometry && (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onFocusParcel(parcel.pin, parcel.metadata.geometry);
-              }}
+              onClick={() => onFocusParcel(parcel.pin, parcel.metadata.geometry)}
               title="Locate on map"
               className="p-1.5 bg-emerald-500/10 hover:bg-emerald-500/25 border border-emerald-500/20 hover:border-emerald-500/40 rounded-lg text-emerald-400 transition-all"
             >
@@ -271,11 +283,16 @@ function ParcelCard({ parcel, onFocusParcel }) {
               </svg>
             </button>
           )}
-          <svg className={`w-4 h-4 text-gray-600 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-          </svg>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="p-1 hover:bg-white/5 rounded transition-colors"
+          >
+            <svg className={`w-4 h-4 text-gray-600 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
         </div>
-      </button>
+      </div>
 
       {/* Shares breakdown bar */}
       <div className="px-4 pb-3">
@@ -298,11 +315,11 @@ function ParcelCard({ parcel, onFocusParcel }) {
             className="overflow-hidden"
           >
             <div className="border-t border-white/10 px-4 py-3 space-y-2">
-              <Row label="Price / Share" value={parcel.price_hbar ? `${parcel.price_hbar} HBAR` : '—'} />
+              <Row label="Price / Share" value={pricePerShare ? `${pricePerShare} ${tokenSymbol}` : '—'} />
               <Row label="Listed Shares" value={`${sharesListed} / ${parcel.total_shares}`} />
               {parcel.listed_at && <Row label="Listed At" value={new Date(parcel.listed_at).toLocaleDateString()} />}
-              <Row label="NFT Token" value={parcel.nft_token_id} mono link={`https://hashscan.io/testnet/token/${parcel.nft_token_id}`} />
-              <Row label="Share Token" value={parcel.share_token_id} mono link={`https://hashscan.io/testnet/token/${parcel.share_token_id}`} />
+              <Row label="NFT Token" value={parcel.nft_token_id} mono link={`${explorerBase}/token/${parcel.nft_token_id}`} />
+              <Row label="Share Token" value={parcel.share_token_id} mono link={`${explorerBase}/token/${parcel.share_token_id}`} />
               <Row label="Minted" value={new Date(parcel.created_at).toLocaleDateString()} />
             </div>
           </motion.div>
@@ -313,7 +330,7 @@ function ParcelCard({ parcel, onFocusParcel }) {
 }
 
 // ── Share holdings tab ────────────────────────────────────────────────────────
-function HoldingsTab({ portfolio, totalValue }) {
+function HoldingsTab({ portfolio, totalValue, tokenSymbol, explorerBase }) {
   if (portfolio.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-48 text-center px-6">
@@ -333,17 +350,23 @@ function HoldingsTab({ portfolio, totalValue }) {
       {/* Total value */}
       <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-3 flex items-center justify-between">
         <span className="text-gray-400 text-sm">Total Invested</span>
-        <span className="text-purple-400 font-black text-lg">{totalValue.toFixed(2)} HBAR</span>
+        <span className="text-purple-400 font-black text-lg">{totalValue.toFixed(2)} {tokenSymbol}</span>
       </div>
 
       {portfolio.map((holding, i) => (
-        <HoldingCard key={i} holding={holding} />
+        <HoldingCard key={i} holding={holding} explorerBase={explorerBase} />
       ))}
     </div>
   );
 }
 
-function HoldingCard({ holding }) {
+function HoldingCard({ holding, explorerBase }) {
+  // Get price based on blockchain type
+  const pricePaid = holding.blockchain_type === 'adi'
+    ? holding.price_paid_adi
+    : holding.price_paid_hbar;
+  const tokenSymbol = holding.blockchain_type === 'adi' ? 'ADI' : 'HBAR';
+
   return (
     <div className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 space-y-2">
       <div className="flex items-start justify-between gap-3">
@@ -353,14 +376,14 @@ function HoldingCard({ holding }) {
         </div>
         <div className="text-right">
           <p className="text-purple-400 font-black text-sm">{holding.shares_owned} shares</p>
-          <p className="text-gray-500 text-xs">{holding.price_paid_hbar} HBAR paid</p>
+          <p className="text-gray-500 text-xs">{pricePaid} {tokenSymbol} paid</p>
         </div>
       </div>
       <div className="flex items-center justify-between">
         <span className="text-gray-600 text-xs">{new Date(holding.purchased_at).toLocaleDateString()}</span>
         {holding.share_token_id && (
           <a
-            href={`https://hashscan.io/testnet/token/${holding.share_token_id}`}
+            href={`${explorerBase}/token/${holding.share_token_id}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs text-amber-500 hover:text-amber-400 transition-colors"

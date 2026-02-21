@@ -1,23 +1,28 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { hedera } from '../services/api';
+import { hedera, durham } from '../services/api';
 import { estimateParcelValue, formatUsd, formatHbar } from '../utils/marketPricing';
 
 /**
  * ListModal — owner lists their tokenized parcel shares for sale.
  *
  * Props:
- *   parcel    {object}  — token_registry row from tokenizedPinsRef
- *   wallet    {string}  — owner's Hedera account ID
- *   onClose   {fn}
- *   onListed  {fn}      — called after successful listing (refreshes map layer)
+ *   parcel       {object}  — token_registry row from tokenizedPinsRef
+ *   wallet       {string}  — owner's Hedera account ID or ADI address
+ *   onClose      {fn}
+ *   onListed     {fn}      — called after successful listing (refreshes map layer)
+ *   serviceType  {string}  — 'hedera' or 'durham'
  */
-export default function ListModal({ parcel, wallet, onClose, onListed }) {
+export default function ListModal({ parcel, wallet, onClose, onListed, serviceType = 'hedera' }) {
   const [sharesAmount, setSharesAmount] = useState('');
   const [priceHbar, setPriceHbar] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
+
+  const isDurham = serviceType === 'durham';
+  const service = isDurham ? durham : hedera;
+  const tokenSymbol = isDurham ? 'ADI' : 'HBAR';
 
   const maxShares = parcel?.available_shares || parcel?.total_shares || 1000;
   const shares = parseInt(sharesAmount) || 0;
@@ -25,7 +30,11 @@ export default function ListModal({ parcel, wallet, onClose, onListed }) {
   const totalValue = (shares * price).toFixed(2);
 
   // Zoning and area come from metadata stored at mint time
-  const zoning = parcel?.metadata?.current_zoning || parcel?.metadata?.zoning;
+  // Handle both Hedera (metadata.current_zoning) and Durham (metadata.zoning.current) formats
+  const zoning = parcel?.metadata?.current_zoning
+    || parcel?.metadata?.zoning?.current
+    || parcel?.metadata?.zoning?.proposed
+    || (typeof parcel?.metadata?.zoning === 'string' ? parcel?.metadata?.zoning : null);
   const areaSqft = parcel?.metadata?.area_sqft || parcel?.area_sqft || null;
   const estValue = zoning ? estimateParcelValue(zoning, areaSqft) : null;
 
@@ -39,19 +48,26 @@ export default function ListModal({ parcel, wallet, onClose, onListed }) {
       return;
     }
     if (!price || price <= 0) {
-      setError('Enter a price per share in HBAR.');
+      setError(`Enter a price per share in ${tokenSymbol}.`);
       return;
     }
     setLoading(true);
     setError('');
     try {
-      const res = await hedera.listShares({
+      const params = {
         pin: parcel.pin,
         countyId: parcel.county_id,
         ownerAccountId: wallet,
         sharesAmount: shares,
-        priceHbar: price,
-      });
+      };
+
+      if (isDurham) {
+        params.priceAdi = price;
+      } else {
+        params.priceHbar = price;
+      }
+
+      const res = await service.listShares(params);
       setResult(res);
       onListed();
     } catch (err) {
@@ -158,7 +174,7 @@ export default function ListModal({ parcel, wallet, onClose, onListed }) {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      Price per Share (HBAR)
+                      Price per Share ({tokenSymbol})
                     </label>
                     {estValue && (
                       <button
@@ -184,8 +200,8 @@ export default function ListModal({ parcel, wallet, onClose, onListed }) {
                 {/* Total value preview */}
                 {shares > 0 && price > 0 && (
                   <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 flex items-center justify-between">
-                    <span className="text-gray-400 text-sm">{shares} shares × {price} HBAR</span>
-                    <span className="text-emerald-400 font-black text-lg">{totalValue} HBAR</span>
+                    <span className="text-gray-400 text-sm">{shares} shares × {price} {tokenSymbol}</span>
+                    <span className="text-emerald-400 font-black text-lg">{totalValue} {tokenSymbol}</span>
                   </div>
                 )}
 
@@ -229,8 +245,8 @@ export default function ListModal({ parcel, wallet, onClose, onListed }) {
                 </div>
                 <div className="bg-white/5 rounded-2xl p-4 border border-white/10 space-y-2 text-left">
                   <Row label="Shares Listed" value={String(result.listed_shares)} />
-                  <Row label="Price / Share" value={`${result.price_hbar} HBAR`} />
-                  <Row label="Total Value" value={`${(result.listed_shares * result.price_hbar).toFixed(2)} HBAR`} />
+                  <Row label="Price / Share" value={`${isDurham ? result.price_adi : result.price_hbar} ${tokenSymbol}`} />
+                  <Row label="Total Value" value={`${(result.listed_shares * (isDurham ? result.price_adi : result.price_hbar)).toFixed(2)} ${tokenSymbol}`} />
                   <Row label="Share Token" value={result.share_token_id} mono />
                 </div>
                 <button

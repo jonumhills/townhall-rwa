@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { hedera } from '../services/api';
+import { hedera, durham } from '../services/api';
 import { estimateParcelValue, formatUsd, formatHbar } from '../utils/marketPricing';
 
 /**
@@ -13,11 +13,12 @@ import { estimateParcelValue, formatUsd, formatHbar } from '../utils/marketPrici
  *
  * Props:
  *   parcel       {object}  — selectedParcel from MapView (properties from GeoJSON)
- *   wallet       {string}  — connected Hedera account ID
+ *   wallet       {string}  — connected wallet (Hedera account ID or ADI address)
  *   onClose      {fn}
  *   onMinted     {fn}      — called after successful claim submission
+ *   serviceType  {string}  — 'hedera' or 'durham'
  */
-export default function ClaimModal({ parcel, wallet, onClose, onMinted }) {
+export default function ClaimModal({ parcel, wallet, onClose, onMinted, serviceType = 'hedera' }) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -31,13 +32,26 @@ export default function ClaimModal({ parcel, wallet, onClose, onMinted }) {
   const countyId = parcel?.county_id;
   const location = parcel?.location || parcel?.address || 'Unknown location';
 
+  const isDurham = serviceType === 'durham';
+  const service = isDurham ? durham : hedera;
+  const chainName = isDurham ? 'ADI Chain' : 'Hedera';
+  const tokenSymbol = isDurham ? 'ADI' : 'HBAR';
+
   // Step 1: Verify deed exists in Supabase and is unclaimed
   const handleVerify = async () => {
     setLoading(true);
     setError('');
     try {
-      const result = await hedera.verifyDeed({ pin, countyId, ownerAccountId: wallet });
-      if (!result.pin_matched) {
+      const result = await service.verifyDeed({ pin, countyId, ownerAccountId: wallet });
+
+      // Handle different response formats
+      if (result.success === false || result.error) {
+        setError(result.error || result.message || 'Verification failed');
+        return;
+      }
+
+      // Hedera format: pin_matched, already_tokenized
+      if (result.pin_matched === false) {
         setError(`PIN ${pin} not found in the registry.`);
         return;
       }
@@ -45,6 +59,13 @@ export default function ClaimModal({ parcel, wallet, onClose, onMinted }) {
         setError('This parcel is already tokenized.');
         return;
       }
+
+      // Durham format: success: true, canClaim
+      if (result.success && !result.canClaim) {
+        setError('This parcel cannot be claimed.');
+        return;
+      }
+
       setStep(2);
     } catch (err) {
       setError(err.response?.data?.error || err.message);
@@ -106,29 +127,42 @@ export default function ClaimModal({ parcel, wallet, onClose, onMinted }) {
     try {
       const price = priceHbar ? parseFloat(priceHbar) : null;
 
-      const response = await fetch('http://localhost:3001/token/submit-claim', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      let result;
+      if (isDurham) {
+        result = await service.submitClaim({
           pin,
           countyId,
           ownerAccountId: wallet,
-          priceHbar: price,
+          priceAdi: price,
           deedDocumentBase64: deedFileBase64,
-        }),
-      });
+        });
+      } else {
+        // Hedera uses direct fetch for now (could be refactored to use service.submitClaim)
+        const response = await fetch('/raleigh/token/submit-claim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pin,
+            countyId,
+            ownerAccountId: wallet,
+            priceHbar: price,
+            deedDocumentBase64: deedFileBase64,
+          }),
+        });
 
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to submit claim');
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.error || 'Failed to submit claim');
+        }
+
+        result = await response.json();
       }
 
-      const result = await response.json();
       setClaimResult(result);
       setStep(4);
       onMinted(); // refresh map (pending claims could be shown differently)
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.error || err.message);
     } finally {
       setLoading(false);
     }
@@ -189,7 +223,7 @@ export default function ClaimModal({ parcel, wallet, onClose, onMinted }) {
             {step === 1 && (
               <div className="space-y-4">
                 <div>
-                  <p className="text-gray-400 text-sm mb-3">Confirm you own this parcel to claim it on Hedera.</p>
+                  <p className="text-gray-400 text-sm mb-3">Confirm you own this parcel to claim it on {chainName}.</p>
                   <div className="bg-white/5 rounded-2xl p-4 space-y-2 border border-white/10">
                     <Row label="PIN" value={pin} mono />
                     <Row label="County" value={countyId} />
@@ -208,14 +242,14 @@ export default function ClaimModal({ parcel, wallet, onClose, onMinted }) {
                       <div className="flex items-end justify-between">
                         <div>
                           <p className="text-emerald-400 font-black text-xl">{formatHbar(valueHbar)}</p>
-                          <p className="text-gray-500 text-xs mt-0.5">{formatUsd(valueUsd)} · @$0.18/ℏ</p>
+                          <p className="text-gray-500 text-xs mt-0.5">{formatUsd(valueUsd)} · @$0.18/{tokenSymbol}</p>
                           {acreage && (
                             <p className="text-gray-600 text-xs mt-0.5">{acreage} ac · {Math.round(areaSqft).toLocaleString()} sqft</p>
                           )}
                         </div>
                         <div className="text-right">
                           <p className="text-gray-400 text-xs">Per share (1,000 total)</p>
-                          <p className="text-amber-400 font-bold text-sm">{valueHbarPerShare} ℏ / share</p>
+                          <p className="text-amber-400 font-bold text-sm">{valueHbarPerShare} {tokenSymbol} / share</p>
                         </div>
                       </div>
                     </div>
@@ -356,7 +390,7 @@ export default function ClaimModal({ parcel, wallet, onClose, onMinted }) {
 
                 <div>
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">
-                    Price per Share (HBAR) — optional
+                    Price per Share ({tokenSymbol}) — optional
                   </label>
                   <input
                     type="number"
@@ -377,7 +411,7 @@ export default function ClaimModal({ parcel, wallet, onClose, onMinted }) {
                           onClick={() => setPriceHbar(String(valueHbarPerShare))}
                           className="text-xs text-amber-500 hover:text-amber-400 font-bold transition-colors"
                         >
-                          Use est. {valueHbarPerShare} ℏ/share
+                          Use est. {valueHbarPerShare} {tokenSymbol}/share
                         </button>
                       </div>
                     );
@@ -416,9 +450,9 @@ export default function ClaimModal({ parcel, wallet, onClose, onMinted }) {
                 </div>
 
                 <div className="bg-white/5 rounded-2xl p-4 border border-white/10 space-y-2 text-left">
-                  <Row label="Claim ID" value={claimResult.claim_id} mono />
-                  <Row label="PIN" value={claimResult.pin} mono />
-                  <Row label="Status" value="Pending Review" />
+                  <Row label="Claim ID" value={claimResult.claimId || claimResult.claim_id} mono />
+                  <Row label="PIN" value={pin} mono />
+                  <Row label="Status" value={claimResult.status || "Pending Review"} />
                 </div>
 
                 <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 text-left">
@@ -430,7 +464,7 @@ export default function ClaimModal({ parcel, wallet, onClose, onMinted }) {
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-yellow-400 shrink-0">2.</span>
-                      <span>If approved, NFT is minted with county signature on Hedera</span>
+                      <span>If approved, NFT is minted with county signature on {chainName}</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-yellow-400 shrink-0">3.</span>

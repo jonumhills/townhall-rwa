@@ -406,9 +406,7 @@ router.get("/tokenized", async (req, res) => {
 
     let query = sb
       .from("token_registry")
-      .select(
-        "pin, county_id, nft_token_id, share_token_id, serial_number, total_shares, available_shares, listed_shares, owner_wallet, listed, price_hbar, listed_at, created_at, verification_status"
-      );
+      .select("*");
 
     if (countyId) {
       query = query.eq("county_id", countyId);

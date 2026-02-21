@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 
 const features = [
   {
-    title: 'AI-Powered Chat',
-    description: 'Ask questions about petitions in natural language using Elasticsearch Agent Builder',
+    title: 'Blockchain Deed NFTs',
+    description: 'Property deeds tokenized as NFTs on Hedera and ADI Chain with verified ownership',
     icon: (
       <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
     ),
     highlight: true,
@@ -17,11 +17,11 @@ const features = [
     iconColor: '#ff6030',
   },
   {
-    title: 'Smart Email Alerts',
-    description: 'Get notified with AI-generated impact analysis when petitions are filed near you',
+    title: 'Fractional Ownership',
+    description: 'Own 1/1000th of real estate parcels with ERC-20 share tokens tradeable on-chain',
     icon: (
       <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
     highlight: true,
@@ -31,25 +31,25 @@ const features = [
     iconColor: '#ff8800',
   },
   {
-    title: 'Interactive GIS Mapping',
-    description: 'Visualize parcel polygons and petition locations on an interactive Mapbox interface',
+    title: 'Multi-Chain Marketplace',
+    description: 'Trade property shares on Hedera (HBAR) and ADI Chain with instant settlement',
     icon: (
       <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
       </svg>
     ),
-    highlight: false,
+    highlight: true,
     gradientFrom: 'rgba(255,68,0,0.08)',
     borderColor: 'rgba(255,68,0,0.15)',
     iconBg: 'rgba(255,68,0,0.1)',
     iconColor: '#ff4400',
   },
   {
-    title: 'Automated Scraping',
-    description: 'Continuously monitors government websites for new rezoning petitions 24/7',
+    title: 'Rezoning Intelligence',
+    description: 'AI-powered tracking of government rezoning decisions with geospatial analysis',
     icon: (
       <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
       </svg>
     ),
     highlight: false,
@@ -59,11 +59,11 @@ const features = [
     iconColor: '#f87171',
   },
   {
-    title: 'PDF Intelligence',
-    description: 'Extracts parcel IDs and critical details from PDF documents automatically',
+    title: 'County Admin Dashboard',
+    description: 'Verify deeds, approve claims, and mint NFTs with county-controlled wallets',
     icon: (
       <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
       </svg>
     ),
     highlight: false,
@@ -73,11 +73,11 @@ const features = [
     iconColor: '#fbbf24',
   },
   {
-    title: 'Analytics Dashboard',
-    description: 'Kibana-powered dashboards for tracking trends and petition statistics',
+    title: 'Interactive GIS Maps',
+    description: 'Mapbox visualization showing tokenized parcels in gold with real-time data',
     icon: (
       <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
       </svg>
     ),
     highlight: false,
@@ -109,11 +109,11 @@ function Features() {
             <span className="text-red-400 text-sm font-medium tracking-widest uppercase">Platform Capabilities</span>
           </div>
           <h2 className="text-4xl md:text-5xl font-black text-white mb-4">
-            Intelligent{' '}
-            <span className="bg-gradient-to-r from-red-500 to-orange-400 bg-clip-text text-transparent">Features</span>
+            Tokenization{' '}
+            <span className="bg-gradient-to-r from-red-500 to-orange-400 bg-clip-text text-transparent">Platform</span>
           </h2>
           <p className="text-gray-400 text-lg max-w-3xl mx-auto">
-            Everything you need to track government rezoning decisions
+            Multi-chain real estate tokenization with blockchain-verified deeds and fractional ownership
           </p>
         </motion.div>
 
@@ -183,10 +183,10 @@ function Features() {
           <div className="absolute inset-0 bg-[linear-gradient(rgba(255,68,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,68,0,0.02)_1px,transparent_1px)] bg-[size:40px_40px]" />
           <div className="relative z-10">
             <h3 className="text-3xl md:text-4xl font-black text-white mb-4">
-              Ready To Get Started?
+              Ready To Tokenize Real Estate?
             </h3>
             <p className="text-gray-400 text-lg mb-8 max-w-2xl mx-auto">
-              Join hundreds of citizens staying informed about their communities
+              Discover tokenized parcels, trade fractional shares, and invest in real estate on the blockchain
             </p>
             <button
               onClick={() => navigate('/map')}
