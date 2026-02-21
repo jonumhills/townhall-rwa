@@ -3,7 +3,7 @@
 > **Tokenizing Government Zoning Changes as Real World Assets**
 > Built for ETHDenver 2025 | Hedera Native SDK Bounty Track
 
-[![ETHDenver 2025](https://img.shields.io/badge/ETHDenver-2025-blueviolet)](https://www.ethdenver.com/)
+[![ETHDenver 2026](https://img.shields.io/badge/ETHDenver-2025-blueviolet)](https://www.ethdenver.com/)
 [![Hedera](https://img.shields.io/badge/Hedera-Testnet-green)](https://hedera.com/)
 [![RWA](https://img.shields.io/badge/RWA-Tokenization-blue)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
