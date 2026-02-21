@@ -33,7 +33,7 @@
 
 - **Blockchain Deed NFTs**: Property deeds minted as NFTs with county signature
 - **Fractional Ownership**: 1,000 shares per property, 0 decimals
-- **Multi-Chain**: Hedera (HBAR) for Raleigh, ADI Chain (zkSync) for Durham
+- **Multi-Chain**: Hedera (HBAR) for Raleigh County, ADI Chain (ADI) for Durham County
 - **County Verification**: Admin dashboard for government-approved minting
 - **Interactive Maps**: Mapbox visualization showing tokenized parcels in gold
 - **Instant Trading**: Buy/sell shares with 3-5 second finality
@@ -68,7 +68,7 @@ Buyers Purchase Fractional Shares
 - NFT: Hedera `TokenType.NonFungibleUnique`
 - Shares: Hedera `TokenType.FungibleCommon`
 
-### Durham County (ADI Chain - zkSync Era)
+### Durham County (ADI Chain)
 
 ```
 County Admin Deploys Contracts (ONCE)
@@ -94,10 +94,10 @@ Buyers Purchase via Marketplace.buyShares()
 ### Tech Stack
 
 - **Frontend**: React, Vite, TailwindCSS, Mapbox GL
-- **Blockchain**: Hedera SDK (`@hashgraph/sdk`), Ethers.js, Hardhat
+- **Blockchain**: Hedera - Hedera SDK only (`@hashgraph/sdk`), ADI - Ethers.js, Hardhat
 - **Backend**: Node.js (Express), Python (FastAPI)
 - **Database**: Supabase (PostgreSQL)
-- **Smart Contracts**: Solidity 0.8.20, OpenZeppelin
+- **Smart Contracts**: No Smart Contracts for Hedera, Solidity 0.8.20, OpenZeppelin
 
 ## Links
 
@@ -111,19 +111,19 @@ Buyers Purchase via Marketplace.buyShares()
 - Example: `0.0.7963265` (TCZ-91-21)
 - Explorer: https://hashscan.io/testnet/token/0.0.7963265
 
-### Durham County (ADI Testnet - zkSync Era)
+### Durham County (ADI Testnet)
 
 **ParcelNFT Contract (ERC-721):**
 - Address: `0x9157055CaC3583Ed303C51862e6C9A79E6Aa2e17`
-- Explorer: https://explorer.testnet.abs.xyz/address/0x9157055CaC3583Ed303C51862e6C9A79E6Aa2e17
+- Explorer: [https://explorer.testnet.abs.xyz/address/0x9157055CaC3583Ed303C51862e6C9A79E6Aa2e17](https://explorer.ab.testnet.adifoundation.ai/address/0x9157055CaC3583Ed303C51862e6C9A79E6Aa2e17)
 
 **ShareTokenFactory Contract:**
 - Address: `0x8f16C7EE2C7100Bc074550CdB79dAD35C590Bb97`
-- Explorer: https://explorer.testnet.abs.xyz/address/0x8f16C7EE2C7100Bc074550CdB79dAD35C590Bb97
+- Explorer: [https://explorer.testnet.abs.xyz/address/0x8f16C7EE2C7100Bc074550CdB79dAD35C590Bb97](https://explorer.ab.testnet.adifoundation.ai/address/0x8f16C7EE2C7100Bc074550CdB79dAD35C590Bb97)
 
 **Marketplace Contract:**
 - Address: `0x24d46f74Dd046A6B8DE72E8f01598d22C0cA8ab0`
-- Explorer: https://explorer.testnet.abs.xyz/address/0x24d46f74Dd046A6B8DE72E8f01598d22C0cA8ab0
+- Explorer: [https://explorer.testnet.abs.xyz/address/0x24d46f74Dd046A6B8DE72E8f01598d22C0cA8ab0](https://explorer.ab.testnet.adifoundation.ai/address/0x24d46f74Dd046A6B8DE72E8f01598d22C0cA8ab0)
 
 ---
 
